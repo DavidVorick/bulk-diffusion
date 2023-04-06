@@ -694,7 +694,7 @@ pub fn generate_prompts(
 "sampler_name": "{}",
 "prompt": "{}",
 "negative_prompt": "{}",
-"batch_size": 8,
+"batch_size": 1,
 "send_images": true"###,
             seed, stepss[stepss_rng], cfgs[cfg_rng], width, height, sampler, positive, negative
         );

@@ -87,7 +87,7 @@ fn err_404(e: Error) -> (StatusCode, Response) {
 fn err_internal(e: Error) -> (StatusCode, Response) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        format!("{}", e).into_response(),
+        format!("{:#}", e).into_response(),
     )
 }
 
