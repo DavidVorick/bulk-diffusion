@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!--
+
+CONTRIBUTE: Currently nothing in the UI appears in sorted order. Would be great
+to have some sort of consistent sorting for the tags and the way images are
+displayed.
+
+CONTRIBUTE: Performance really starts to suffer once you get into the thousands
+of images, there should be some low hanging fruit to optimize the way the DOM
+gets refreshed.
+
+TODO: Use 8 images as the minimum required for results. If between 8 and 15
+images, 75% saturation gives you a 'reduced' confidence, anything less is not
+notable. If over 15 images, 66% counts as 'reduced' confidence, and 3/4 counts
+as full confidence.
+
+-->
+
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta http-equiv="X-UA-Compatible" content="ie-edge" />
+
+	<link rel="stylesheet" href="css/global.css" />
+	<link rel="manifest" href="manifest.json" />
+
+	<title>Bulk Diffusion</title>
+
+<style>
+
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+button.header {
+	padding: 1em;
+	margin: 2em;
+	width: 20em;
+}
+
+div.meta-prompting {
+}
+
+div.meta-prompting-editor {
+	width: 60%;
+	height: 40em;
+	display: inline-block;
+}
+
+textarea.meta-prompting-editor {
+	height: 100%;
+	width: 100%;
+}
+
+div.meta-prompting-settings {
+	padding: 1em;
+}
+
+input.meta-prompting-slider {
+}
+
+button.meta-prompting-button {
+	padding: 0.5em;
+	margin: 1em;
+}
+
+div.meta-prompting-list {
+	width: 39%;
+	height: 100%;
+	display: inline-block;
+	vertical-align: top;
+}
+
+h3.meta-prompting-list {
+	margin: 0.5em;
+}
+
+div.meta-prompting-list-item {
+	width: 100%;
+	border: 0.1em solid black;
+	padding: 0.2em;
+	cursor: pointer;
+}
+
+div.meta-prompting-list-active-item {
+	border-color: green;
+	border-width: 0.3em;
+}
+
+div.meta-prompting-list-item:hover {
+	background-color: #CCCCCC;
+}
+
+input.meta-prompting-list-new {
+	margin-top: 1em;
+	padding: 0.1em;
+	width: 100%;
+}
+
+button.meta-prompting-list-new {
+}
+
+div.gallery {
+	border: 0.1em solid black;
+}
+
+button.gallery-header {
+	padding: 0.3em;
+	margin: 0.5em;
+}
+
+div.gallery-tags {
+	min-height: 2em;
+	border: 0.1em solid black;
+}
+
+div.gallery-tag {
+	display: inline-block;
+	border: 0.1em solid black;
+	padding: 0.3em;
+	margin: 0.3em;
+	cursor: pointer;
+	user-select: none;
+}
+
+div.gallery-tag-small {
+	display: inline-block;
+	border: 0.1em solid black;
+	padding: 0.1em;
+	margin: 0.1em;
+	font-size: 0.6em;
+	cursor: pointer;
+	user-select: none;
+}
+
+input.gallery-new-tag {
+}
+
+button.gallery-new-tag {
+	margin: 0.2em;
+	padding: 0.2em;
+}
+
+div.gallery-images {
+	width: 100%;
+	min-height: 6em;
+	border: 0.1em solid black;
+	text-align: center;
+}
+
+img.gallery-image {
+	width: 20em;
+	margin: 0.2em;
+}
+
+div.gallery-analytics-modal {
+	display: none;
+	position: fixed;
+	z-index: 1;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	overflow: auto;
+	background-color: rgba(0, 0, 0, 0.4);
+}
+
+div.gallery-analytics-modal-content {
+	background-color: #fefefe;
+	margin: 15% auto;
+	padding: 1.5em;
+	border: 0.2em solid #888;
+	width: 80%;
+}
+
+span.gallery-analytics-model-close {
+	color: #aaaaaa;
+	float: right;
+	font-size: 2em;
+	font-weight: bold;
+}
+
+span.gallery-analytics-model-close:hover,
+span.gallery-analytics-model-close:focus, {
+	color: #000;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+</style>
+</head>
+	<body>
+		<!-- Create the header that switches between MetaPrompt and Gallery -->
+		<div style="width: 100%">
+			<center>
+				<button class="header" onClick="activateMetaPrompting()">Meta Prompting</button>
+				<button class="header" onClick="activateGallery()">Gallery</button>
+			</center>
+		</div>
+
+		<!-- Create the Meta Prompting screen -->
+		<div id="meta-prompting" class="meta-prompting">
+			<div id="meta-prompting-editor" class="meta-prompting-editor">
+				<textarea id="meta-prompting-editor-textarea" class="meta-prompting-editor">
+				</textarea>
+				<div class="meta-prompting-settings">
+					<center>
+						Images:
+						<input class="meta-prompting-slider" type="range" min="100" max="2000" step="100" value="200" oninput="this.nextElementSibling.value = this.value">
+						<input id="meta-prompting-batch-size" type="text" value="200" size="6" oninput="this.previousElementSibling.value = this.value"><br />
+						<button class="meta-prompting-button" onClick="generate()">Generate</button>
+					</center>
+				</div>
+			</div>
+			<div id="meta-prompting-list" class="meta-prompting-list">
+			</div>
+		</div>
+
+		<div id="gallery" class="gallery" hidden>
+			<div class="gallery-tags">
+				<center>
+					<button id="open-gallery-analytics" class="gallery-header">Open Gallery Analytics</button>
+				<center>
+			</div>
+			<div id="gallery-filters" class="gallery-tags">
+			</div>
+			<div id="gallery-sorting" class="gallery-sorting">
+			</div>
+			<div id="gallery-imgs" class="gallery-images">
+			</div>
+		</div>
+
+		<div id="gallery-analytics-modal" class="gallery-analytics-modal">
+			<div class="gallery-analytics-modal-content">
+				<pre><p id="gallery-analytics-modal-text">
+Processing...
+				</p></pre>
+			</div>
+		</div>
+	</body>
+
+<script>
+	let activeMetaPrompt = "";
+	let listOfMetaTags = {};
+	let listOfTags = {};
+	let listOfPromptElements = {};
+	let imgDataFuncs = {};
+	let imgFilterFuncs = {};
+	let imgToggleFuncs = {};
+	let galleryImgsDOM = {};
+	let newTagDOM;
+
+	// Grab the list of metaprompts from the webserver.
+	async function loadListOfMetaPrompts() {
+		try {
+			const response = await fetch("/metaprompt_list");
+			const data = await response.json();
+			return data;
+		} catch(e) {
+			console.error(e);
+		}
+	}
+
+	// Grab the current metaprompt from the server.
+	async function loadMetaPrompt() {
+		try {
+			const response = await fetch("/metaprompt/"+activeMetaPrompt);
+			const data = await response.text();
+			document.getElementById("meta-prompting-editor-textarea").value = data;
+			listOfMetaTags = {};
+			listOfTags = {};
+			listOfPromptElements = {};
+			imgDataFuncs = {};
+			imgFilterFuncs = {};
+			imgTagFuncs = {};
+			loadVisibleImgs();
+		} catch(e) {
+			console.error(e);
+		}
+	}
+
+	// saveMetaPrompt will save the text for the current activeMetaPrompt to
+	// disk.
+	async function saveMetaPrompt() {
+		try {
+			await fetch("/metaprompt/"+activeMetaPrompt, {
+				method: 'POST',
+				body: document.getElementById("meta-prompting-editor-textarea").value,
+			});
+		} catch(e) {
+			console.error(e);
+		}
+	}
+
+	// Create a listener that detects when the metaprompt has been updated.
+	let metaPromptEditorChanged = false;
+	document.getElementById("meta-prompting-editor-textarea").addEventListener("input", function() {
+		metaPromptEditorChanged = true;
+	});
+	document.getElementById("meta-prompting-editor-textarea").addEventListener("keydown", function(e) {
+		if (e.key !== 'Tab') {
+			return;
+		}
+		e.preventDefault();
+		const start = this.selectionStart;
+		const end = this.selectionEnd;
+		const value = this.value;
+		this.value = value.substring(0, start) + '\t' + value.substring(end);
+		this.selectionStart = this.selectionEnd = start + 1;
+	});
+	setInterval(function() {
+		if (!metaPromptEditorChanged) {
+			return;
+		}
+		metaPromptEditorChanged = false;
+		saveMetaPrompt();
+	}, 1000);
+	setInterval(function() {
+		loadVisibleImgs();
+	}, 5000);
+
+	function activateMetaPrompting() {
+		document.getElementById("gallery").hidden = true;
+		document.getElementById("meta-prompting").hidden = false;
+	}
+
+	function activateGallery() {
+		document.getElementById("meta-prompting").hidden = true;
+		document.getElementById("gallery").hidden = false;
+	}
+
+	async function loadMetaPrompts() {
+		let listElems = [];
+
+		// Create the header for the meta prompts list.
+		let header = document.createElement("h3");
+		header.classList.add("meta-prompting-list");
+		header.innerHTML = "All Meta Prompts";
+		listElems.push(header);
+
+		// Load the meta-prompts.
+		let mps = await loadListOfMetaPrompts();
+
+		// Create each row.
+		for (let i = 0; i < mps.length; i++) {
+			let div = document.createElement("div");
+			div.classList.add("meta-prompting-list-item");
+			if (mps[i] == activeMetaPrompt) {
+				div.classList.add("meta-prompting-list-active-item");
+				await loadMetaPrompt();
+			}
+			div.innerHTML = mps[i];
+			div.addEventListener("click", function() {
+				activeMetaPrompt = div.innerHTML;
+				loadMetaPrompts();
+			});
+			listElems.push(div);
+		}
+
+		/*
+		// Create the form to make a new metaprompt.
+		let metaPromptNew = document.createElement("div");
+		metaPromptNew.classList.add("meta-prompting-list-new");
+		metaPromptNew.innerHTML = `
+		   <input type="text" class="meta-prompting-list-new">
+		   <button class="meta-prompting-list-new"> Create New Meta Prompt</button>
+`
+		listElems.push(metaPromptNew);
+		*/
+		document.getElementById("meta-prompting-list").replaceChildren(...listElems);
+	}
+
+	async function generate() {
+		if (activeMetaPrompt === "") {
+			return;
+		}
+
+		try {
+			let batchSize = document.getElementById("meta-prompting-batch-size").value;
+			const response = await fetch("/generate_imgs/"+activeMetaPrompt+"?batch_size="+batchSize, {
+				method: 'POST',
+				body: document.getElementById("meta-prompting-editor-textarea").value,
+			});
+			const data = await response.text();
+		} catch(e) {
+			console.error(e);
+		}
+	}
+
+	function getFilters() {
+		let positiveFilters = [];
+		let negativeFilters = [];
+		for (const key in listOfMetaTags) {
+			if (listOfMetaTags[key].filter === "positive") {
+				positiveFilters.push(key);
+			}
+			if (listOfMetaTags[key].filter === "negative") {
+				negativeFilters.push(key);
+			}
+		}
+		for (const key in listOfTags) {
+			if (listOfTags[key].filter === "positive") {
+				positiveFilters.push(key);
+			}
+			if (listOfTags[key].filter === "negative") {
+				negativeFilters.push(key);
+			}
+		}
+		for (const key in listOfPromptElements) {
+			if (listOfPromptElements[key].filter === "positive") {
+				positiveFilters.push(key);
+			}
+			if (listOfPromptElements[key].filter === "negative") {
+				negativeFilters.push(key);
+			}
+		}
+		return [positiveFilters, negativeFilters];
+	}
+
+	function getToggles() {
+		let positiveToggles = [];
+		let negativeToggles = [];
+		for (const key in listOfTags) {
+			if (listOfTags[key].toggle === "positive") {
+				positiveToggles.push(key);
+			}
+			if (listOfTags[key].toggle === "negative") {
+				negativeToggles.push(key);
+			}
+		}
+		return [positiveToggles, negativeToggles];
+	}
+
+	function loadVisibleTags() {
+		let children = [];
+
+		// Add a header
+		let header = document.createElement("h3");
+		header.classList.add("meta-prompting-list");
+		header.innerHTML = "Visible Images";
+		children.push(header);
+
+		// Add all the tags.
+		for (const key in listOfTags) {
+			if (key == "ai" || key == "stable diffusion") {
+				continue;
+			}
+			let div = document.createElement("div");
+			div.classList.add("gallery-tag");
+			div.innerHTML = key;
+			if (listOfTags[key].filter === "ignore") {
+				div.style.backgroundColor = "white";
+			} else if (listOfTags[key].filter === "positive") {
+				div.style.backgroundColor = "green";
+			} else {
+				div.style.backgroundColor = "red";
+			}
+			div.onclick = () => {
+				if (listOfTags[key].filter === "ignore") {
+					listOfTags[key].filter = "positive";
+					div.style.backgroundColor = "green";
+				} else if (listOfTags[key].filter === "positive") {
+					listOfTags[key].filter = "negative";
+					div.style.backgroundColor = "red";
+				} else {
+					listOfTags[key].filter = "ignore";
+					div.style.backgroundColor = "white";
+				}
+
+				// Update the images so that only the images that match the
+				// changed filter settings are visible.
+				let [positiveFilters, negativeFilters] = getFilters();
+				for (const key in imgFilterFuncs) {
+					imgFilterFuncs[key](positiveFilters, negativeFilters);
+				}
+			}
+			children.push(div);
+		}
+		// Add all the meta tags
+		for (const key in listOfMetaTags) {
+			let div = document.createElement("div");
+			div.classList.add("gallery-tag");
+			div.innerHTML = key;
+			if (listOfMetaTags[key].filter === "ignore") {
+				div.style.backgroundColor = "white";
+			} else if (listOfMetaTags[key].filter === "positive") {
+				div.style.backgroundColor = "green";
+			} else {
+				div.style.backgroundColor = "red";
+			}
+			div.onclick = () => {
+				if (listOfMetaTags[key].filter === "ignore") {
+					listOfMetaTags[key].filter = "positive";
+					div.style.backgroundColor = "green";
+				} else if (listOfMetaTags[key].filter === "positive") {
+					listOfMetaTags[key].filter = "negative";
+					div.style.backgroundColor = "red";
+				} else {
+					listOfMetaTags[key].filter = "ignore";
+					div.style.backgroundColor = "white";
+				}
+
+				// Update the images so that only the images that match the
+				// changed filter settings are visible.
+				let [positiveFilters, negativeFilters] = getFilters();
+				for (const key in imgFilterFuncs) {
+					imgFilterFuncs[key](positiveFilters, negativeFilters);
+				}
+			}
+			children.push(div);
+		}
+		// Add all the prompt elements
+		let br = document.createElement("br");
+		children.push(br);
+		for (const key in listOfPromptElements) {
+			if (Object.keys(listOfPromptElements[key].frequency).length < 20) {
+					continue;
+			}
+			let div = document.createElement("div");
+			div.classList.add("gallery-tag-small");
+			div.innerHTML = key;
+			if (listOfPromptElements[key].filter === "ignore") {
+				div.style.backgroundColor = "white";
+			} else if (listOfPromptElements[key].filter === "positive") {
+				div.style.backgroundColor = "green";
+			} else {
+				div.style.backgroundColor = "red";
+			}
+			div.onclick = () => {
+				if (listOfPromptElements[key].filter === "ignore") {
+					listOfPromptElements[key].filter = "positive";
+					div.style.backgroundColor = "green";
+				} else if (listOfPromptElements[key].filter === "positive") {
+					listOfPromptElements[key].filter = "negative";
+					div.style.backgroundColor = "red";
+				} else {
+					listOfPromptElements[key].filter = "ignore";
+					div.style.backgroundColor = "white";
+				}
+
+				// Update the images so that only the images that match the
+				// changed filter settings are visible.
+				let [positiveFilters, negativeFilters] = getFilters();
+				for (const key in imgFilterFuncs) {
+					imgFilterFuncs[key](positiveFilters, negativeFilters);
+				}
+			}
+			children.push(div);
+		}
+
+		// Update the DOM.
+		let filtersDiv = document.getElementById("gallery-filters");
+		filtersDiv.replaceChildren(...children);
+	}
+
+	function loadSortingTags() {
+		let children = [];
+
+		// Add a header
+		let header = document.createElement("h3");
+		header.classList.add("meta-prompting-list");
+		header.innerHTML = "Add Tags on Click";
+		children.push(header);
+
+		// Add all the tags.
+		for (const key in listOfTags) {
+			if (key == "ai" || key == "stable diffusion") {
+				continue;
+			}
+			let div = document.createElement("div");
+			div.classList.add("gallery-tag");
+			div.innerHTML = key;
+			if (listOfTags[key].toggle === "ignore") {
+				div.style.backgroundColor = "white";
+			} else if (listOfTags[key].toggle === "positive") {
+				div.style.backgroundColor = "green";
+			} else {
+				div.style.backgroundColor = "red";
+			}
+			div.onclick = () => {
+				if (listOfTags[key].toggle === "ignore") {
+					listOfTags[key].toggle = "positive";
+					div.style.backgroundColor = "green";
+				} else if (listOfTags[key].toggle === "positive") {
+					listOfTags[key].toggle = "negative";
+					div.style.backgroundColor = "red";
+				} else {
+					listOfTags[key].toggle = "ignore";
+					div.style.backgroundColor = "white";
+				}
+
+				// Update the images so that images which match the toggles
+				// have a border.
+				let [positiveToggles, negativeToggles] = getToggles();
+				for (const key in imgFilterFuncs) {
+					imgToggleFuncs[key](positiveToggles, negativeToggles);
+				}
+			}
+			children.push(div);
+		}
+
+		// Add a text form at the end for adding a new tag.
+		if (newTagDOM === undefined) {
+			let div = document.createElement("div");
+			div.classList.add("gallery-tag");
+			let input = document.createElement("input");
+			input.type = "text";
+			input.id = "gallery-new-tag-input";
+			input.classList.add("gallery-new-tag");
+			input.placeholder = "new tag";
+			let button = document.createElement("button");
+			button.classList.add("gallery-new-tag");
+			button.innerHTML = "submit";
+			button.onclick = function() {
+				let newTag = document.getElementById("gallery-new-tag-input").value;
+				if (newTag == "bokeh") {
+					console.log("BOKEH");
+				}
+				listOfTags[newTag] = {
+					filter: "ignore",
+					toggle: "ignore",
+				}
+				loadSortingTags();
+				loadVisibleTags();
+			}
+			div.replaceChildren(input, button);
+			children.push(div);
+			newTagDOM = div;
+		} else {
+			children.push(newTagDOM);
+		}
+
+		// Update the DOM.
+		let filtersDiv = document.getElementById("gallery-sorting");
+		let focusedElement = document.activeElement;
+		filtersDiv.replaceChildren(...children);
+		if (focusedElement instanceof HTMLElement) {
+			focusedElement.focus();
+		}
+	}
+
+	// Define global variables that fill out the state.
+	let loadVisibleImgsRunning = false;
+	let reloadVisibleImgs = false;
+	async function loadVisibleImgs(ignore) {
+		if (activeMetaPrompt == "") {
+			return;
+		}
+
+		// Set up some safety so only one call is running at a time.
+		if (loadVisibleImgsRunning && ignore !== undefined) {
+			reloadVisibleImgs = true;
+			return;
+		}
+		loadVisibleImgsRunning = true;
+
+		try {
+			const response = await fetch("/gallery/"+activeMetaPrompt);
+			const data = await response.json();
+			let children = [];
+			for (let i = 0; i < data.length; i++) {
+				// Attempt to save CPU by using a cache of DOM elements for our
+				// images.
+				let img;
+				if (galleryImgsDOM.hasOwnProperty(data[i].location)) {
+					img = galleryImgsDOM[data[i].location];
+				} else {
+					img = document.createElement("img");
+					img.classList.add("gallery-image");
+					img.src = data[i].location;
+				}
+
+				// Add the child element.
+				let imgTags = {};
+				let promptElements = {};
+				children.push(img);
+				galleryImgsDOM[data[i].location] = img;
+
+				// Add any missing tags. Do not modify the values of existing
+				// tags.
+				for (let j = 0; j < data[i].tags.length; j++) {
+					imgTags[data[i].tags[j]] = {};
+					if (!listOfTags.hasOwnProperty(data[i].tags[j])) {
+						if (data[i].tags[j] == "bokeh") {
+							console.log("BOKEH");
+							console.log(data[i].location);
+						}
+						listOfTags[data[i].tags[j]] = {
+							filter: "ignore", // potential values: 'positive', 'negative', 'ignore'
+							toggle: "ignore", // same ^
+						};
+					}
+				}
+
+				// Add any missing prompt elements. Do not modify the values of existing
+				// prompt elements.
+				for (let j = 0; j < data[i].prompt_elements.length; j++) {
+					promptElements[data[i].prompt_elements[j]] = {};
+					if (!listOfPromptElements.hasOwnProperty(data[i].prompt_elements[j])) {
+						listOfPromptElements[data[i].prompt_elements[j]] = {
+							filter: "ignore",
+							frequency: {},
+						};
+					}
+					listOfPromptElements[data[i].prompt_elements[j]].frequency[data[i].location] = {};
+				}
+
+				// Add any missing meta-tags. For now that's just the batch
+				// number.
+				if (!listOfMetaTags.hasOwnProperty("batch "+data[i].batch)) {
+					listOfMetaTags["batch "+data[i].batch] = {
+						filter: "ignore",
+					};
+				}
+
+				// Create the filter function for the image that will determine
+				// whether or not the image gets displayed given a list of
+				// positive and negative tags.
+				let batch = data[i].batch;
+				let imgDataFunc = () => {
+					let isHidden = false;
+					if (img.hidden) {
+						isHidden = true;
+					}
+					return [imgTags, data[i].prompt_elements, isHidden];
+				}
+				let visibilityFilterFunc = (positiveFilters, negativeFilters) => {
+					let visible = true;
+					for (let i = 0; i < positiveFilters.length; i++) {
+						if (positiveFilters[i] === "batch "+batch) {
+							continue;
+						}
+						if (imgTags.hasOwnProperty(positiveFilters[i])) {
+							continue;
+						}
+						if (promptElements.hasOwnProperty(positiveFilters[i])) {
+							continue;
+						}
+						visible = false;
+						break;
+					}
+					for (let i = 0; i < negativeFilters.length; i++) {
+						if (negativeFilters[i] === "batch "+batch) {
+							visible = false;
+							break;
+						}
+						if (imgTags.hasOwnProperty(negativeFilters[i])) {
+							visible = false;
+							break;
+						}
+						if (promptElements.hasOwnProperty(negativeFilters[i])) {
+							visible = false;
+							break;
+						}
+					}
+
+					if (visible) {
+						img.hidden = false;
+					} else {
+						img.hidden = true;
+					}
+				};
+				let borderToggleFunc = (positiveToggles, negativeToggles) => {
+					let border = true;
+					for (let i = 0; i < positiveToggles.length; i++) {
+						if (imgTags.hasOwnProperty(positiveToggles[i])) {
+							continue;
+						}
+						border = false;
+						break;
+					}
+					for (let i = 0; i < negativeToggles.length; i++) {
+						if (imgTags.hasOwnProperty(negativeToggles[i])) {
+							border = false;
+							break;
+						}
+					}
+
+					// If the user has no tags toggled, we don't have any
+					// borders at all.
+					if (positiveToggles.length == 0 && negativeToggles.length == 0) {
+						border = false;
+					}
+
+					if (border) {
+						img.style.border = "0.5em solid green";
+					} else {
+						delete img.style.border;
+						img.style.border = "none";
+					}
+				};
+				let [positive, negative] = getFilters();
+				visibilityFilterFunc(positive, negative);
+				let [positiveT, negativeT] = getToggles();
+				borderToggleFunc(positiveT, negativeT);
+				imgDataFuncs[data[i].location] = imgDataFunc;
+				imgFilterFuncs[data[i].location] = visibilityFilterFunc;
+				imgToggleFuncs[data[i].location] = borderToggleFunc;
+
+				img.onclick = async function() {
+					let [positive, negative] = getToggles();
+					if (positive.length == 0 && negative.length == 0) {
+						return;
+					}
+					if (img.style.border === "medium none") {
+						for (let i = 0; i < positive.length; i++) {
+							imgTags[positive[i]] = {};
+						}
+						for (let i = 0; i < negative.length; i++) {
+							delete imgTags[negative[i]];
+						}
+						img.style.border = "0.5em solid green";
+					} else {
+						for (let i = 0; i < positive.length; i++) {
+							delete imgTags[negative[i]];
+						}
+						for (let i = 0; i < negative.length; i++) {
+							imgTags[positive[i]] = {};
+						}
+						img.style.border = "none";
+					}
+
+					// Try updating the tags for the img.
+					try {
+						let imgTagsArr = [];
+						for (const key in imgTags) {
+							imgTagsArr.push(key);
+						}
+						let bodyData = {
+							path: data[i].location,
+							tags: imgTagsArr,
+						};
+						await fetch("/update_tags", {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json'
+							},
+							body: JSON.stringify(bodyData),
+						});
+					} catch(e) {
+						console.error(e);
+					}
+
+					// Update the visibility of the image we just clicked.
+					let [positiveV, negativeV] = getFilters();
+					visibilityFilterFunc(positiveV, negativeV);
+				};
+			}
+			document.getElementById("gallery-imgs").replaceChildren(...children);
+
+			// Reload the tag lists.
+			loadVisibleTags();
+			loadSortingTags();
+		} catch(e) {
+			console.error(e);
+		}
+
+		if (reloadVisibleImgs) {
+			loadVisibleImgsRunning(true);
+		} else {
+			let loadVisibleImgsRunning = false;
+		}
+	}
+
+	// Establish the code to open the analytics modal and present analytics to
+	// the user.
+	document.getElementById("open-gallery-analytics").onclick = function() {
+		// Iterate over all of the tags and create counters for each tag.
+		let tags = {};
+		for (const key in listOfTags) {
+			if (key == "ai" || key == "stable diffusion") {
+				continue;
+			}
+			tags[key] = {
+				totalHits: 0,
+				totalMisses: 0,
+				prompt_element_breakdown: {},
+			};
+		}
+
+		// Iterate over all of the visible images and count up the number of
+		// times each tag and prompt element appears.
+		let totalImgs = 0;
+		for (const key in imgDataFuncs) {
+			let [imgTags, prompt_elements, isHidden] = imgDataFuncs[key]();
+			if (isHidden) {
+				continue;
+			}
+			totalImgs++;
+			for (const tag in listOfTags) {
+				if (tag == "ai" || tag == "stable diffusion") {
+					continue;
+				}
+
+				// Mark a hit or miss on this tag.
+				if (imgTags.hasOwnProperty(tag)) {
+					tags[tag].totalHits++;
+				} else {
+					tags[tag].totalMisses++;
+				}
+
+				// For each element, mark a hit or miss on this tag.
+				for (const i in prompt_elements) {
+					let elem = prompt_elements[i];
+					if (!tags[tag].prompt_element_breakdown.hasOwnProperty(elem)) {
+						tags[tag].prompt_element_breakdown[elem] = {
+							totalHits: 0,
+							totalMisses: 0,
+						};
+					}
+					if (imgTags.hasOwnProperty(tag)) {
+						tags[tag].prompt_element_breakdown[elem].totalHits++;
+					} else {
+						tags[tag].prompt_element_breakdown[elem].totalMisses++;
+					}
+				}
+			}
+		}
+
+		// Drop any universal tags.
+		for (const key in tags) {
+			if (tags[key].totalHits == totalImgs || tags[key].totalMisses == totalImgs) {
+				delete tags[key];
+			}
+		}
+
+		// Identify which prompt elements are notable for each tag. We use
+		// bernoulli math to determine how notable a prompt element is.
+		let factorial = (n) => {
+			if (n === 0 || n === 1) {
+				return 1;
+			}
+			let result = 1;
+			for (let i = 2; i <= n; i++) {
+				result *= i;
+			}
+			return result;
+		}
+		let choose = (n, m) => {
+			if (m < 0 || m > n) {
+				return 0;
+			}
+			let logFactN = 0;
+			let logFactM = 0;
+			let logFactNM = 0;
+			for (let i = 2; i <= n; i++) {
+				logFactN += Math.log(i);
+				if (i <= m) {
+					logFactM += Math.log(i);
+				}
+				if (i <= n - m) {
+					logFactNM += Math.log(i);
+				}
+			}
+			return Math.exp(logFactN - logFactM - logFactNM);
+		}
+		let chanceIfRandom = (tagTotalHits, tagTotalMisses, elemTotalHits, elemTotalMisses) => {
+			let p = tagTotalHits/(tagTotalHits+tagTotalMisses);
+			let n = elemTotalHits + elemTotalMisses;
+			let x = 0;
+			for (let i = 0; i < elemTotalHits; i++) {
+				let a = choose(n, i) * p**i * (1-p)**(n-i);
+				x += a;
+			}
+			return x
+		}
+		let result = "Below is the probability that a prompt element results in a tag:\n\n";
+		for (const tag in tags) {
+			let th = tags[tag].totalHits;
+			let tm = tags[tag].totalMisses;
+			result += tag+"\n";
+			for (const elem in tags[tag].prompt_element_breakdown) {
+				let ph = tags[tag].prompt_element_breakdown[elem].totalHits;
+				let pm = tags[tag].prompt_element_breakdown[elem].totalMisses;
+				let x = chanceIfRandom(th, tm, ph, pm);
+				if ((x > 0.05 && x < 0.95) || ph+pm < 6) {
+					delete tags[tag].prompt_element_breakdown[elem];
+					continue;
+				}
+				tags[tag].prompt_element_breakdown[elem].strength = x;
+			}
+			const sortedElems = Object.entries(tags[tag].prompt_element_breakdown)
+				.map(([key, value]) => ({ key, strength: value.strength }))
+				.sort((a, b) => b.strength - a.strength);
+			for (let i = 0; i < sortedElems.length; i++) {
+				result += "\t"+sortedElems[i].key+": "+(sortedElems[i].strength*100).toFixed(2)+"%\n";
+			}
+			result += "\n";
+		}
+
+		document.getElementById("gallery-analytics-modal-text").innerHTML = result;
+		document.getElementById("gallery-analytics-modal").style.display = "block";
+	}
+	window.onclick = function(event) {
+		if (event.target == document.getElementById("gallery-analytics-modal")) {
+			document.getElementById("gallery-analytics-modal").style.display = "none";
+		}
+	}
+
+	loadMetaPrompts();
+	loadVisibleTags();
+	loadSortingTags();
+
+	// Clear the metaprompt text box since we don't remember which meta prompt
+	// was in use.
+	window.onload = (event) => {
+		document.getElementById("meta-prompting-editor-textarea").value = "";
+	}
+</script>
+</html>
