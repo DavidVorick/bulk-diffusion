@@ -57,7 +57,7 @@ fn routes() -> Router {
         .route("/generate_imgs/:name", post(generate_imgs))
         .route("/metaprompt/:name", get(metaprompt).post(metaprompt_save))
         .route("/metaprompt_list", get(metaprompt_list))
-        // .route("/save", post(save))
+        .route("/save", post(save))
         .route("/update_tags", post(update_tags))
 }
 
@@ -767,5 +767,30 @@ async fn update_tags(Json(body): Json<UpdateTagsPostParams>) -> impl IntoRespons
     }
 }
 
-// save implements
-async fn save(Json(body): Json<Vec<String>>) -> impl IntoResponse {}
+// save_handler wraps the save handler so that an error can conveniently be returned.
+async fn save_handler(filepaths: Vec<String>) -> Result<Vec<u8>, Error> {
+    let mut buf = Vec::new();
+    let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+    for filepath in filepaths {
+        let file_data = fs::read(filepath.clone())
+            .await
+            .context(format!("unable to read {}", filepath.clone()))?;
+        let options =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        zip.start_file(filepath, options)
+            .context("unable to start file in zip")?;
+        zip.write(&file_data)
+            .context("unable to write file to zip")?;
+    }
+    drop(zip);
+    Ok(buf)
+}
+
+// save will save a list of images by compressing them into a zip file and then returning the zip
+// file as binary data.
+async fn save(Json(images): Json<Vec<String>>) -> impl IntoResponse {
+    match save_handler(images).await {
+        Ok(v) => (StatusCode::OK, v.into_response()),
+        Err(e) => err_bad_request(e),
+    }
+}

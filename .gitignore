@@ -1,4 +1,6 @@
 app_data
 target
 
+Cargo.lock
+
 *.swp

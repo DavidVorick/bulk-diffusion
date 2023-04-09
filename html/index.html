@@ -223,7 +223,8 @@ span.gallery-analytics-model-close:focus, {
 		<div id="gallery" class="gallery" hidden>
 			<div class="gallery-tags">
 				<center>
-					<button id="open-gallery-analytics" class="gallery-header">Open Gallery Analytics</button>
+					<button id="gallery-open-analytics" class="gallery-header">Open Gallery Analytics</button>
+					<button id="gallery-save-visible-images" class="gallery-header">Save Visible Images</button>
 				<center>
 			</div>
 			<div id="gallery-filters" class="gallery-tags">
@@ -868,7 +869,7 @@ Processing...
 
 	// Establish the code to open the analytics modal and present analytics to
 	// the user.
-	document.getElementById("open-gallery-analytics").onclick = function() {
+	document.getElementById("gallery-open-analytics").onclick = function() {
 		// Iterate over all of the tags and create counters for each tag.
 		let tags = {};
 		for (const key in listOfTags) {
@@ -918,6 +919,38 @@ Processing...
 						tags[tag].prompt_element_breakdown[elem].totalMisses++;
 					}
 				}
+			}
+		}
+
+		// Save all visible images to a zip.
+		document.getElementById("gallery-save-visible-images").onclick = async function() {
+			console.log("imgs saved");
+			let imgs = [];
+			for (const key in imgDataFuncs) {
+				let [imgTags, prompt_elements, isHidden] = imgDataFuncs[key]();
+				if (isHidden) {
+					continue;
+				}
+				imgs.push(key);
+			}
+			try {
+				const response = await fetch("/save", {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify(imgs),
+				});
+				const data = await response.blob();
+				const link = document.createElement('a');
+				link.href = URL.createObjectURL(data);
+				link.download = "visible-images.zip";
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				URL.revokeObjectURL(link.href);
+			} catch(e) {
+				console.error(e);
 			}
 		}
 
